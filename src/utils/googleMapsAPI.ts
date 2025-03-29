@@ -1,22 +1,25 @@
-
 // Google Maps API types
-export interface DirectionsResult {
+export interface RoutesResponse {
   routes: {
-    legs: {
-      distance: {
-        text: string;
-        value: number;  // in meters
-      };
-      duration: {
-        text: string;
-        value: number;  // in seconds
-      };
-      start_address: string;
-      end_address: string;
-    }[];
-    overview_polyline: {
-      points: string;
+    distanceMeters: number;
+    duration: string;
+    polyline: {
+      encodedPolyline: string;
     };
+    legs: {
+      startLocation: {
+        latLng: {
+          latitude: number;
+          longitude: number;
+        };
+      };
+      endLocation: {
+        latLng: {
+          latitude: number;
+          longitude: number;
+        };
+      };
+    }[];
   }[];
 }
 
@@ -40,7 +43,7 @@ export const setApiKey = (key: string) => {
 
 export const getApiKey = () => apiKey;
 
-// Calculate route using Google Maps Directions API
+// Calculate route using Google Maps Routes API
 export const calculateRoute = async (
   origin: string, 
   destination: string
@@ -53,55 +56,102 @@ export const calculateRoute = async (
   
   try {
     // Outbound journey (A to B)
-    const outboundResponse = await fetchDirections(origin, destination);
+    const outboundResponse = await fetchRoute(origin, destination);
     
     // Return journey (B to A)
-    const returnResponse = await fetchDirections(destination, origin);
+    const returnResponse = await fetchRoute(destination, origin);
     
     // Process both journeys
-    const outboundLeg = processLeg(outboundResponse.routes[0].legs[0], origin, destination);
-    const returnLeg = processLeg(returnResponse.routes[0].legs[0], destination, origin);
+    const outboundLeg = processRouteLeg(outboundResponse.routes[0], origin, destination);
+    const returnLeg = processRouteLeg(returnResponse.routes[0], destination, origin);
     
     // Combine data
     return {
       totalDistance: outboundLeg.distance + returnLeg.distance,
       totalDuration: outboundLeg.duration + returnLeg.duration,
       legs: [outboundLeg, returnLeg],
-      polyline: outboundResponse.routes[0].overview_polyline.points
+      polyline: outboundResponse.routes[0].polyline.encodedPolyline
     };
   } catch (error) {
-    console.error('Error fetching directions:', error);
+    console.error('Error fetching route:', error);
     throw new Error('Failed to calculate route. Please check your addresses and try again.');
   }
 };
 
-// Helper function to fetch directions from the API
-const fetchDirections = async (origin: string, destination: string): Promise<DirectionsResult> => {
-  const url = new URL('https://maps.googleapis.com/maps/api/directions/json');
-  url.searchParams.append('origin', origin);
-  url.searchParams.append('destination', destination);
-  url.searchParams.append('mode', 'driving');
-  url.searchParams.append('key', apiKey);
+// Helper function to fetch routes from the API
+const fetchRoute = async (origin: string, destination: string): Promise<RoutesResponse> => {
+  const url = new URL('https://routes.googleapis.com/directions/v2:computeRoutes');
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Goog-Api-Key': apiKey,
+    'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.legs.startLocation,routes.legs.endLocation'
+  };
+
+  const data = {
+    origin: {
+      address: origin
+    },
+    destination: {
+      address: destination
+    },
+    travelMode: "DRIVE",
+    routingPreference: "TRAFFIC_AWARE",
+    computeAlternativeRoutes: false,
+    routeModifiers: {
+      avoidTolls: false,
+      avoidHighways: false,
+      avoidFerries: false
+    }
+  };
   
   // Note: Due to CORS restrictions, this request would normally need to be proxied through a server
   // For direct client-side implementation, consider using the Google Maps JavaScript API instead
   // This code assumes you have a server-side proxy or are using this in a Node.js environment
   
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(data)
+  });
+  
   if (!response.ok) {
-    throw new Error(`Directions API returned ${response.status}: ${response.statusText}`);
+    throw new Error(`Routes API returned ${response.status}: ${response.statusText}`);
   }
   
   return await response.json();
 };
 
-// Process a leg of the journey
-const processLeg = (leg: DirectionsResult['routes'][0]['legs'][0], startAddress: string, endAddress: string) => {
+// Process a leg of the journey from Routes API response
+const processRouteLeg = (route: RoutesResponse['routes'][0], startAddress: string, endAddress: string) => {
+  const distanceKm = route.distanceMeters / 1000;
+  
+  // Parse duration string (format: "123s" or "1h2m3s")
+  let durationMinutes = 0;
+  const durationStr = route.duration;
+  
+  if (durationStr.includes('h')) {
+    const hours = parseInt(durationStr.split('h')[0]);
+    durationMinutes += hours * 60;
+    const remainder = durationStr.split('h')[1];
+    
+    if (remainder.includes('m')) {
+      const minutes = parseInt(remainder.split('m')[0]);
+      durationMinutes += minutes;
+    }
+  } else if (durationStr.includes('m')) {
+    const minutes = parseInt(durationStr.split('m')[0]);
+    durationMinutes += minutes;
+  } else if (durationStr.includes('s')) {
+    const seconds = parseInt(durationStr.split('s')[0]);
+    durationMinutes += seconds / 60;
+  }
+  
   return {
     startAddress,
     endAddress,
-    distance: leg.distance.value / 1000, // Convert to km
-    duration: leg.duration.value / 60 // Convert to minutes
+    distance: distanceKm,
+    duration: durationMinutes
   };
 };
 
@@ -162,4 +212,41 @@ export const decodePolyline = (polyline: string): { lat: number; lng: number }[]
     { lat: 38.5, lng: -121.9 },
     { lat: 38.57, lng: -121.47 } // Sacramento
   ];
+};
+
+// Google Places Autocomplete API
+export interface PlacesAutocompleteResult {
+  predictions: {
+    place_id: string;
+    description: string;
+    structured_formatting: {
+      main_text: string;
+      secondary_text: string;
+    };
+  }[];
+  status: string;
+}
+
+export const getPlacesAutocomplete = async (input: string): Promise<PlacesAutocompleteResult> => {
+  if (!apiKey || !input || input.length < 2) {
+    return { predictions: [], status: "ZERO_RESULTS" };
+  }
+  
+  try {
+    const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
+    url.searchParams.append('input', input);
+    url.searchParams.append('types', 'address');
+    url.searchParams.append('key', apiKey);
+    
+    const response = await fetch(url.toString());
+    
+    if (!response.ok) {
+      throw new Error(`Places API returned ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching places autocomplete:', error);
+    return { predictions: [], status: "ERROR" };
+  }
 };

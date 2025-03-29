@@ -57,7 +57,7 @@ const ApiKeyInput = () => {
           Google Maps API Configuration
         </CardTitle>
         <CardDescription>
-          Enter your Google Maps API key to enable real route calculations.
+          Enter your Google Maps API key to enable real route calculations with the Routes API.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -72,7 +72,7 @@ const ApiKeyInput = () => {
               onChange={(e) => setKey(e.target.value)}
             />
             <p className="text-xs text-gray-500">
-              The key will be stored in your browser's local storage.
+              Enable the Routes API and Places API in your Google Cloud project. The key will be stored in your browser's local storage.
             </p>
           </div>
           <div className="flex gap-2">

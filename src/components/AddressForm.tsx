@@ -1,10 +1,9 @@
 
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { MapPin, RotateCw } from "lucide-react";
+import { RotateCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import AddressInputAutocomplete from './AddressInputAutocomplete';
 
 interface AddressFormProps {
   onCalculate: (originAddress: string, destinationAddress: string) => void;
@@ -26,39 +25,23 @@ const AddressForm = ({ onCalculate, isLoading }: AddressFormProps) => {
     <Card className="w-full">
       <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="origin">
-              <span className="flex items-center gap-1">
-                <MapPin size={16} className="text-blue-500" />
-                Starting Point (A)
-              </span>
-            </Label>
-            <Input
-              id="origin"
-              placeholder="Enter starting address"
-              value={originAddress}
-              onChange={(e) => setOriginAddress(e.target.value)}
-              required
-              className="w-full"
-            />
-          </div>
+          <AddressInputAutocomplete
+            id="origin"
+            label="Starting Point (A)"
+            iconColor="text-blue-500"
+            placeholder="Enter starting address"
+            value={originAddress}
+            onChange={setOriginAddress}
+          />
           
-          <div className="space-y-2">
-            <Label htmlFor="destination">
-              <span className="flex items-center gap-1">
-                <MapPin size={16} className="text-red-500" />
-                Destination (B)
-              </span>
-            </Label>
-            <Input
-              id="destination"
-              placeholder="Enter destination address"
-              value={destinationAddress}
-              onChange={(e) => setDestinationAddress(e.target.value)}
-              required
-              className="w-full"
-            />
-          </div>
+          <AddressInputAutocomplete
+            id="destination"
+            label="Destination (B)"
+            iconColor="text-red-500"
+            placeholder="Enter destination address"
+            value={destinationAddress}
+            onChange={setDestinationAddress}
+          />
           
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
