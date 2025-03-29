@@ -1,17 +1,31 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from "@/components/ui/use-toast";
-import { calculateRoute, RouteDetails as RouteDetailsType } from "@/utils/googleMapsAPI";
+import { calculateRoute, RouteDetails as RouteDetailsType, getApiKey } from "@/utils/googleMapsAPI";
 import AddressForm from "@/components/AddressForm";
 import RouteMap from "@/components/RouteMap";
 import RouteDetails from "@/components/RouteDetails";
 import AppHeader from "@/components/AppHeader";
+import ApiKeyInput from "@/components/ApiKeyInput";
 
 const Index = () => {
   const [originAddress, setOriginAddress] = useState<string>('');
   const [destinationAddress, setDestinationAddress] = useState<string>('');
   const [routeDetails, setRouteDetails] = useState<RouteDetailsType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
+
+  // Check if API key is available
+  useEffect(() => {
+    setHasApiKey(!!getApiKey());
+    
+    // Setup interval to check for API key changes
+    const interval = setInterval(() => {
+      setHasApiKey(!!getApiKey());
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   const handleCalculateRoute = async (origin: string, destination: string) => {
     try {
@@ -44,6 +58,16 @@ const Index = () => {
         <AppHeader />
         
         <div className="grid gap-6 mb-8">
+          <ApiKeyInput />
+          
+          {!hasApiKey && (
+            <div className="rounded-md bg-amber-50 p-4 mb-4 border border-amber-200">
+              <p className="text-amber-800 text-sm">
+                You are currently using mock data. Add a Google Maps API key for real route calculations.
+              </p>
+            </div>
+          )}
+          
           <AddressForm 
             onCalculate={handleCalculateRoute}
             isLoading={isLoading}

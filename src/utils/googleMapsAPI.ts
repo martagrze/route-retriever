@@ -32,14 +32,84 @@ export interface RouteDetails {
   polyline: string;
 }
 
+// API key input state - for demonstration purposes
+let apiKey = '';
+export const setApiKey = (key: string) => {
+  apiKey = key;
+};
+
+export const getApiKey = () => apiKey;
+
 // Calculate route using Google Maps Directions API
 export const calculateRoute = async (
   origin: string, 
   destination: string
 ): Promise<RouteDetails> => {
-  // In a real implementation, this would make an actual API call
-  // For this demo, we'll simulate a response with mock data
+  // Check if API key is available
+  if (!apiKey) {
+    // For demo purposes, fall back to mock data if no API key
+    return calculateMockRoute(origin, destination);
+  }
   
+  try {
+    // Outbound journey (A to B)
+    const outboundResponse = await fetchDirections(origin, destination);
+    
+    // Return journey (B to A)
+    const returnResponse = await fetchDirections(destination, origin);
+    
+    // Process both journeys
+    const outboundLeg = processLeg(outboundResponse.routes[0].legs[0], origin, destination);
+    const returnLeg = processLeg(returnResponse.routes[0].legs[0], destination, origin);
+    
+    // Combine data
+    return {
+      totalDistance: outboundLeg.distance + returnLeg.distance,
+      totalDuration: outboundLeg.duration + returnLeg.duration,
+      legs: [outboundLeg, returnLeg],
+      polyline: outboundResponse.routes[0].overview_polyline.points
+    };
+  } catch (error) {
+    console.error('Error fetching directions:', error);
+    throw new Error('Failed to calculate route. Please check your addresses and try again.');
+  }
+};
+
+// Helper function to fetch directions from the API
+const fetchDirections = async (origin: string, destination: string): Promise<DirectionsResult> => {
+  const url = new URL('https://maps.googleapis.com/maps/api/directions/json');
+  url.searchParams.append('origin', origin);
+  url.searchParams.append('destination', destination);
+  url.searchParams.append('mode', 'driving');
+  url.searchParams.append('key', apiKey);
+  
+  // Note: Due to CORS restrictions, this request would normally need to be proxied through a server
+  // For direct client-side implementation, consider using the Google Maps JavaScript API instead
+  // This code assumes you have a server-side proxy or are using this in a Node.js environment
+  
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Directions API returned ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+};
+
+// Process a leg of the journey
+const processLeg = (leg: DirectionsResult['routes'][0]['legs'][0], startAddress: string, endAddress: string) => {
+  return {
+    startAddress,
+    endAddress,
+    distance: leg.distance.value / 1000, // Convert to km
+    duration: leg.duration.value / 60 // Convert to minutes
+  };
+};
+
+// Mock implementation for demonstration or when API key is not available
+const calculateMockRoute = async (
+  origin: string, 
+  destination: string
+): Promise<RouteDetails> => {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 1000));
   
@@ -51,53 +121,24 @@ export const calculateRoute = async (
   const durationToBInSeconds = distanceToBInMeters / 13.89; // Approx 50 km/h
   const durationToAInSeconds = distanceToAInMeters / 13.89; // Approx 50 km/h
   
-  const mockResult: DirectionsResult = {
-    routes: [
-      {
-        legs: [
-          {
-            distance: {
-              text: `${(distanceToBInMeters / 1000).toFixed(1)} km`,
-              value: distanceToBInMeters
-            },
-            duration: {
-              text: `${Math.floor(durationToBInSeconds / 60)} mins`,
-              value: durationToBInSeconds
-            },
-            start_address: origin,
-            end_address: destination
-          },
-          {
-            distance: {
-              text: `${(distanceToAInMeters / 1000).toFixed(1)} km`,
-              value: distanceToAInMeters
-            },
-            duration: {
-              text: `${Math.floor(durationToAInSeconds / 60)} mins`,
-              value: durationToAInSeconds
-            },
-            start_address: destination,
-            end_address: origin
-          }
-        ],
-        overview_polyline: {
-          points: "mock_polyline_string"
-        }
-      }
-    ]
-  };
-  
-  // Process the result into our RouteDetails format
   return {
     totalDistance: (distanceToBInMeters + distanceToAInMeters) / 1000, // Convert to km
     totalDuration: (durationToBInSeconds + durationToAInSeconds) / 60, // Convert to minutes
-    legs: mockResult.routes[0].legs.map(leg => ({
-      startAddress: leg.start_address,
-      endAddress: leg.end_address,
-      distance: leg.distance.value / 1000, // Convert to km
-      duration: leg.duration.value / 60, // Convert to minutes
-    })),
-    polyline: mockResult.routes[0].overview_polyline.points
+    legs: [
+      {
+        startAddress: origin,
+        endAddress: destination,
+        distance: distanceToBInMeters / 1000, // Convert to km
+        duration: durationToBInSeconds / 60, // Convert to minutes
+      },
+      {
+        startAddress: destination,
+        endAddress: origin,
+        distance: distanceToAInMeters / 1000, // Convert to km
+        duration: durationToAInSeconds / 60, // Convert to minutes
+      }
+    ],
+    polyline: "mock_polyline_string"
   };
 };
 
